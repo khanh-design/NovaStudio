@@ -1,7 +1,8 @@
 "use client";
 import { useState, useCallback } from "react";
 import { api, GenerateRequest } from "@/lib/api";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Volume2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const IMAGE_MODELS = [
   { value: "fal-ai/flux/schnell", label: "Flux Schnell (Fast)" },
@@ -10,8 +11,14 @@ const IMAGE_MODELS = [
 ];
 
 const VIDEO_MODELS = [
-  { value: "fal-ai/kling-video/v1/standard/text-to-video", label: "Kling Standard" },
-  { value: "fal-ai/kling-video/v1/pro/text-to-video",      label: "Kling Pro" },
+  // Native audio models ✅ (confirmed on fal.ai)
+  { value: "fal-ai/kling-video/v2.6/pro/text-to-video",      label: "Kling v2.6 Pro 🔊 ✨" },
+  { value: "fal-ai/kling-video/v2.6/standard/text-to-video", label: "Kling v2.6 Standard 🔊" },
+  { value: "fal-ai/minimax/video-01-live",                   label: "Minimax Video 01 Live 🔊" },
+  // Silent models (MMAudio post-processing added automatically)
+  { value: "fal-ai/kling-video/v1.6/standard/text-to-video", label: "Kling v1.6 Standard" },
+  { value: "fal-ai/kling-video/v1.6/pro/text-to-video",      label: "Kling v1.6 Pro" },
+  { value: "fal-ai/kling-video/v1/standard/text-to-video",   label: "Kling v1 Standard" },
 ];
 
 const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4"];
@@ -27,6 +34,8 @@ export function GenerationForm({ projectId, onQueued }: GenerationFormProps) {
   const [model, setModel] = useState(IMAGE_MODELS[0].value);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [duration, setDuration] = useState(5);
+  const [addAudio] = useState(true);            // always on
+  const [audioPrompt, setAudioPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -52,7 +61,7 @@ export function GenerationForm({ projectId, onQueued }: GenerationFormProps) {
         model,
         aspect_ratio: aspectRatio,
         ...(projectId && { project_id: projectId }),
-        ...(type === "video" && { duration }),
+        ...(type === "video" && { duration, add_audio: addAudio, audio_prompt: audioPrompt || undefined }),
       };
       const res = await api.generation.trigger(req);
       setSuccess(`Queued! Generation ID: ${res.generation_id}`);
@@ -97,7 +106,22 @@ export function GenerationForm({ projectId, onQueued }: GenerationFormProps) {
           required
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
         />
-        <p className="text-xs text-muted-foreground text-right">{prompt.length}/2000</p>
+        <div className="flex items-center justify-between text-xs">
+          <span className={cn(
+            prompt.length > 800 ? "text-yellow-400" : "text-muted-foreground"
+          )}>
+            {prompt.length > 800 && (
+              <span className="mr-1">⚠️ AI dùng 800 ký tự đầu tiên</span>
+            )}
+          </span>
+          <span className={cn(
+            prompt.length > 9000 ? "text-red-400" :
+            prompt.length > 800  ? "text-yellow-400" :
+            "text-muted-foreground"
+          )}>
+            {prompt.length.toLocaleString()}/10,000
+          </span>
+        </div>
       </div>
 
       {/* Model */}
@@ -132,18 +156,43 @@ export function GenerationForm({ projectId, onQueued }: GenerationFormProps) {
 
         {type === "video" && (
           <div className="flex-1 space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Duration (s)</label>
-            <input
-              type="number"
-              min={1}
-              max={60}
+            <label className="text-sm font-medium text-foreground">Duration</label>
+            <select
               value={duration}
               onChange={(e) => setDuration(Number(e.target.value))}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+            >
+              <option value={5}>5 seconds</option>
+              <option value={10}>10 seconds</option>
+            </select>
           </div>
         )}
       </div>
+
+      {/* Audio — always on for video */}
+      {type === "video" && (
+        <div className="space-y-1.5 rounded-md border border-border p-3 bg-muted/30">
+          <div className="flex items-center gap-2 mb-1">
+            <Volume2 className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Âm thanh tự động</span>
+            <span className="ml-auto text-xs px-1.5 py-0.5 rounded border bg-green-500/10 text-green-400 border-green-500/20">
+              Luôn bật
+            </span>
+          </div>
+          <label className="text-xs text-muted-foreground">Mô tả âm thanh (tuỳ chọn)</label>
+          <input
+            type="text"
+            value={audioPrompt}
+            onChange={(e) => setAudioPrompt(e.target.value)}
+            placeholder="Ví dụ: tiếng sóng biển, nhạc nền nhẹ nhàng, tiếng chim hót..."
+            maxLength={500}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Bỏ trống → AI tự phân tích video và thêm âm thanh phù hợp
+          </p>
+        </div>
+      )}
 
       {/* Feedback */}
       {error && (

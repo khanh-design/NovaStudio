@@ -25,9 +25,26 @@ IMAGE_MODELS = {
 }
 
 VIDEO_MODELS = {
-    "fal-ai/kling-video/v1/standard/text-to-video": "fal-ai/kling-video/v1/standard/text-to-video",
-    "fal-ai/kling-video/v1/pro/text-to-video": "fal-ai/kling-video/v1/pro/text-to-video",
-    "fal-ai/minimax-video/image-to-video": "fal-ai/minimax-video/image-to-video",
+    # Kling v1 — silent (MMAudio post-processing)
+    "fal-ai/kling-video/v1/standard/text-to-video":   "fal-ai/kling-video/v1/standard/text-to-video",
+    "fal-ai/kling-video/v1/pro/text-to-video":         "fal-ai/kling-video/v1/pro/text-to-video",
+    # Kling v1.6 — silent (MMAudio post-processing)
+    "fal-ai/kling-video/v1.6/standard/text-to-video": "fal-ai/kling-video/v1.6/standard/text-to-video",
+    "fal-ai/kling-video/v1.6/pro/text-to-video":      "fal-ai/kling-video/v1.6/pro/text-to-video",
+    # Kling v2.6 — native audio ✅ (confirmed on fal.ai)
+    "fal-ai/kling-video/v2.6/standard/text-to-video": "fal-ai/kling-video/v2.6/standard/text-to-video",
+    "fal-ai/kling-video/v2.6/pro/text-to-video":      "fal-ai/kling-video/v2.6/pro/text-to-video",
+    # Minimax Video — native audio ✅
+    "fal-ai/minimax/video-01":      "fal-ai/minimax/video-01",
+    "fal-ai/minimax/video-01-live": "fal-ai/minimax/video-01-live",
+}
+
+# Models that generate audio natively — MMAudio post-processing is skipped for these
+AUDIO_NATIVE_MODELS: set[str] = {
+    "fal-ai/kling-video/v2.6/standard/text-to-video",
+    "fal-ai/kling-video/v2.6/pro/text-to-video",
+    "fal-ai/minimax/video-01",
+    "fal-ai/minimax/video-01-live",
 }
 
 
@@ -85,13 +102,21 @@ class FalProvider(AIProvider):
 
     async def generate_video(self, request: GenerationRequest) -> GenerationResult:
         model_id = VIDEO_MODELS.get(request.model, request.model)
+
+        # Kling Video only accepts duration '5' or '10' (as string)
+        raw_duration = request.duration or 5
+        kling_duration = "10" if raw_duration > 7 else "5"
+
         payload = {
             "prompt": request.prompt,
             "aspect_ratio": request.aspect_ratio,
+            "duration": kling_duration,
             **request.extra_params,
         }
-        if request.duration:
-            payload["duration"] = str(request.duration)
+
+        # Enable native audio for v2.1+ and Minimax models
+        if model_id in AUDIO_NATIVE_MODELS:
+            payload["generate_audio"] = True
 
         try:
             result = await asyncio.to_thread(
@@ -114,6 +139,46 @@ class FalProvider(AIProvider):
                 status=GenerationStatus.FAILED,
                 error_message=str(e),
             )
+
+    # ------------------------------------------------------------------
+    # MMAudio v2 — add synchronized audio to a silent video
+    # Docs: https://fal.ai/models/fal-ai/mmaudio-v2
+    # ------------------------------------------------------------------
+
+    async def add_audio_to_video(
+        self,
+        video_url: str,
+        audio_prompt: str = "",
+        negative_prompt: str = "music",
+        duration: float | None = None,
+    ) -> str:
+        """
+        Call fal-ai/mmaudio-v2 to add AI-generated synchronized audio to a video.
+        Returns the URL of the new video (with audio embedded).
+        """
+        payload: dict = {
+            "video_url": video_url,
+            "prompt": audio_prompt or "natural ambient sound effects synchronized with video",
+            "negative_prompt": negative_prompt,
+            "num_steps": 25,
+        }
+        if duration is not None:
+            payload["duration"] = duration
+
+        try:
+            result = await asyncio.to_thread(
+                fal_client.run, "fal-ai/mmaudio-v2", arguments=payload
+            )
+            # MMAudio returns {"video": {"url": "..."}, "audio": {"url": "..."}}
+            if isinstance(result, dict):
+                video = result.get("video") or {}
+                url = video.get("url") if isinstance(video, dict) else None
+                if url:
+                    return url
+            raise RuntimeError(f"MMAudio returned unexpected format: {result}")
+        except Exception as e:
+            raise RuntimeError(f"MMAudio v2 failed: {e}") from e
+
 
     # ------------------------------------------------------------------
     # check_status — not used with run() but kept for interface compat

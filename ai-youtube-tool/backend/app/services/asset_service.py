@@ -47,6 +47,13 @@ async def get_asset(db: AsyncSession, asset_id: uuid.UUID) -> Asset | None:
 
 
 async def create_asset(db: AsyncSession, data: GenerateRequest) -> Asset:
+    # Build metadata including audio settings for video
+    meta: dict = {}
+    if data.type == "video":
+        meta["add_audio"] = data.add_audio
+        if data.audio_prompt:
+            meta["audio_prompt"] = data.audio_prompt
+
     asset = Asset(
         project_id=data.project_id,
         type=data.type,
@@ -56,6 +63,7 @@ async def create_asset(db: AsyncSession, data: GenerateRequest) -> Asset:
         duration=data.duration,
         resolution=data.resolution,
         status="pending",
+        metadata_json=meta,
     )
     db.add(asset)
     await db.flush()

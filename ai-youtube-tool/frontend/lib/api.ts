@@ -21,7 +21,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Request failed");
+    // FastAPI can return detail as string OR array of validation errors
+    const detail = err.detail;
+    let message: string;
+    if (typeof detail === "string") {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      // 422 validation: [{loc, msg, type}, ...]
+      message = detail.map((e: { loc?: string[]; msg?: string }) =>
+        e.loc ? `${e.loc.join(".")}: ${e.msg}` : e.msg ?? "Validation error"
+      ).join(", ");
+    } else {
+      message = "Request failed";
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -72,6 +85,9 @@ export interface GenerateRequest {
   model: string;
   aspect_ratio: string;
   duration?: number;
+  // Video audio (MMAudio v2)
+  add_audio?: boolean;
+  audio_prompt?: string;
 }
 
 export interface GenerationStatus {
