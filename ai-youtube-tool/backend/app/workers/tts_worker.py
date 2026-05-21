@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run async coroutine from sync Celery context."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 def get_audio_path(audio_id: uuid.UUID, ext: str = "mp3") -> str:

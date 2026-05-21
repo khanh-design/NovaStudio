@@ -65,6 +65,7 @@ def generate_thumbnail(source_path: str, thumbnail_path: str, size: tuple[int, i
                     "-i", source_path,
                     "-ss", "00:00:01",       # capture at 1 second
                     "-vframes", "1",
+                    "-update", "1",          # required for newer FFmpeg single image output
                     "-vf", f"scale={size[0]}:{size[1]}:force_original_aspect_ratio=decrease",
                     thumbnail_path,
                 ],

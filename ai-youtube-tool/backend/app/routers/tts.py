@@ -3,11 +3,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from app.database import get_db
-from app.models.audio_asset import AudioAsset
 from app.schemas.audio import TTSGenerateRequest, AudioAssetResponse, AudioAssetList
+from app.services import audio_service
 
 router = APIRouter(prefix="/tts", tags=["TTS"])
 
@@ -17,14 +16,7 @@ async def generate_tts(body: TTSGenerateRequest, db: AsyncSession = Depends(get_
     """Create a TTS generation task."""
     from app.workers.tts_worker import generate_speech
 
-    audio = AudioAsset(
-        text=body.text,
-        voice=body.voice,
-        model=body.model,
-        language_hint=body.language_hint,
-        status="pending",
-    )
-    db.add(audio)
+    audio = await audio_service.create_audio_asset(db, body)
     await db.commit()
     await db.refresh(audio)
 
@@ -53,13 +45,7 @@ async def list_audio(
     db: AsyncSession = Depends(get_db),
 ):
     """List all audio assets."""
-    total_result = await db.execute(select(func.count()).select_from(AudioAsset))
-    total = total_result.scalar() or 0
-
-    result = await db.execute(
-        select(AudioAsset).order_by(AudioAsset.created_at.desc()).offset(skip).limit(limit)
-    )
-    items = result.scalars().all()
+    items, total = await audio_service.list_audio_assets(db, skip=skip, limit=limit)
 
     return AudioAssetList(
         items=[AudioAssetResponse(
@@ -81,8 +67,7 @@ async def list_audio(
 
 @router.get("/{audio_id}", response_model=AudioAssetResponse)
 async def get_audio(audio_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AudioAsset).where(AudioAsset.id == uuid.UUID(audio_id)))
-    audio = result.scalar_one_or_none()
+    audio = await audio_service.get_audio_asset(db, uuid.UUID(audio_id))
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
     return AudioAssetResponse(
@@ -95,20 +80,16 @@ async def get_audio(audio_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.delete("/{audio_id}", status_code=204)
 async def delete_audio(audio_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AudioAsset).where(AudioAsset.id == uuid.UUID(audio_id)))
-    audio = result.scalar_one_or_none()
+    audio = await audio_service.get_audio_asset(db, uuid.UUID(audio_id))
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
-    if audio.local_path and Path(audio.local_path).exists():
-        Path(audio.local_path).unlink()
-    await db.delete(audio)
+    await audio_service.delete_audio_asset(db, audio)
     await db.commit()
 
 
 @router.get("/{audio_id}/download")
 async def download_audio(audio_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AudioAsset).where(AudioAsset.id == uuid.UUID(audio_id)))
-    audio = result.scalar_one_or_none()
+    audio = await audio_service.get_audio_asset(db, uuid.UUID(audio_id))
     if not audio or not audio.local_path:
         raise HTTPException(status_code=404, detail="Audio file not found")
     path = Path(audio.local_path)

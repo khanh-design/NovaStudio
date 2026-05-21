@@ -15,7 +15,7 @@ class GenerateRequest(BaseModel):
     duration: int | None = Field(default=None, ge=1, le=60)  # video only, seconds
     resolution: str | None = None
     # Video audio options (video only — ignored for images)
-    add_audio: bool = Field(default=False, description="Add AI-generated audio via MMAudio v2")
+    add_audio: bool = Field(default=True, description="Add AI-generated audio (default: on for all video)")
     audio_prompt: str | None = Field(default=None, max_length=500, description="Describe desired audio")
 
 

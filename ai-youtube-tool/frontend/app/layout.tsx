@@ -3,8 +3,8 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 
 export const metadata: Metadata = {
-  title: "AI YouTube Tool",
-  description: "Internal creator tool for AI-powered YouTube content generation",
+  title: "NovaStudio — AI Creator Tool",
+  description: "AI-powered content creation studio for YouTube. Generate images, videos, and audio with cutting-edge AI models.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

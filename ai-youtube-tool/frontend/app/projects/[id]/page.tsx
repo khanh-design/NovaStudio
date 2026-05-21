@@ -2,7 +2,7 @@ import { api } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AssetGallery } from "@/components/asset-gallery";
 import { GenerationForm } from "@/components/generation-form";
-import { ArrowLeft, FolderOpen } from "lucide-react";
+import { ArrowLeft, FolderOpen, Clock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
@@ -21,23 +21,30 @@ export default async function ProjectDetailPage({ params }: Props) {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* Back + Header */}
       <div>
         <Link
           href="/projects"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Projects
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Projects
         </Link>
+
         <div className="flex items-start gap-3">
-          <FolderOpen className="h-6 w-6 text-primary mt-0.5 shrink-0" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <FolderOpen className="h-5 w-5 text-primary" />
+          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
             {project.description && (
               <p className="text-muted-foreground text-sm mt-0.5">{project.description}</p>
             )}
-            <p className="text-xs text-muted-foreground/60 mt-1">Created {formatDate(project.created_at)}</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-1 flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5" />
+              Created {formatDate(project.created_at)}
+            </p>
           </div>
         </div>
       </div>
@@ -45,14 +52,22 @@ export default async function ProjectDetailPage({ params }: Props) {
       {/* Generate + Gallery */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <div className="rounded-lg border border-border bg-card p-5 sticky top-6">
-            <h2 className="font-semibold mb-4 text-sm">Generate for this project</h2>
+          <div className="rounded-xl border border-border bg-card/50 p-5 sticky top-6">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <h2 className="font-semibold text-sm">Generate for project</h2>
+            </div>
             <GenerationForm projectId={id} />
           </div>
         </div>
 
         <div className="lg:col-span-2">
-          <h2 className="font-semibold mb-4 text-sm">Project Assets</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-sm font-semibold">Project Assets</h2>
+            <div className="h-px flex-1 bg-border" />
+          </div>
           <AssetGallery projectId={id} autoRefresh />
         </div>
       </div>

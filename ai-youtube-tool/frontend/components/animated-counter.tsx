@@ -1,48 +1,40 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 
 interface AnimatedCounterProps {
   value: number;
-  duration?: number; // ms
+  duration?: number;
 }
 
-export function AnimatedCounter({ value, duration = 1000 }: AnimatedCounterProps) {
+export function AnimatedCounter({ value, duration = 800 }: AnimatedCounterProps) {
   const [display, setDisplay] = useState(0);
-  const startRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const prevValue = useRef(0);
+  const prevRef = useRef(0);
 
   useEffect(() => {
-    const from = prevValue.current;
+    const from = prevRef.current;
     const to = value;
-    prevValue.current = value;
+    if (from === to) return;
 
-    if (from === to) {
-      setDisplay(to);
-      return;
-    }
+    const startTime = performance.now();
 
-    startRef.current = null;
-
-    const animate = (timestamp: number) => {
-      if (!startRef.current) startRef.current = timestamp;
-      const elapsed = timestamp - startRef.current;
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
-      // Ease out cubic
+      // Ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(from + (to - from) * eased));
+      const current = Math.round(from + (to - from) * eased);
+      setDisplay(current);
 
       if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate);
+        requestAnimationFrame(animate);
+      } else {
+        prevRef.current = to;
       }
     };
 
-    rafRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    requestAnimationFrame(animate);
   }, [value, duration]);
 
-  return <span>{display}</span>;
+  return <>{display.toLocaleString()}</>;
 }

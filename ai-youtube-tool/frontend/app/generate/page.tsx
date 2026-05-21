@@ -1,40 +1,57 @@
-import { GenerationForm } from "@/components/generation-form";
 import { AssetGallery } from "@/components/asset-gallery";
-import { Sparkles } from "lucide-react";
+import { GenerationForm } from "@/components/generation-form";
+import { Sparkles, Lightbulb } from "lucide-react";
 
 export default function GeneratePage() {
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <div>
+    <div className="p-6 lg:p-8 space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Generate</h1>
-          <p className="text-muted-foreground text-sm mt-1">Create AI images and videos</p>
         </div>
+        <p className="text-sm text-muted-foreground">
+          Create AI-powered images and videos with a single prompt
+        </p>
       </div>
 
+      {/* Two Column */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form */}
-        <div className="lg:col-span-1">
-          <div className="rounded-lg border border-border bg-card p-5">
+        <div className="lg:col-span-1 space-y-4">
+          <div className="rounded-xl border border-border bg-card/50 p-5 sticky top-6">
             <GenerationForm />
           </div>
 
           {/* Tips */}
-          <div className="mt-4 rounded-lg border border-border bg-card/50 p-4 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tips</p>
-            <ul className="text-xs text-muted-foreground space-y-1.5">
-              <li>• Be specific about style, lighting, and mood</li>
-              <li>• Add "cinematic", "4K", "detailed" for better quality</li>
-              <li>• Flux Schnell is fastest; Flux Pro is highest quality</li>
-              <li>• Kling Pro gives better video motion</li>
-            </ul>
+          <div className="rounded-xl border border-border bg-card/30 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
+              <h3 className="text-xs font-semibold text-foreground">Tips</h3>
+            </div>
+            <div className="space-y-2">
+              {[
+                "Be specific: describe lighting, mood, camera angle",
+                "Include style keywords: cinematic, aerial, close-up",
+                "Mention colors and atmosphere for best results",
+                "For video: describe motion and action",
+              ].map((tip, i) => (
+                <div key={i} className="flex items-start gap-2 text-[11px] text-muted-foreground">
+                  <span className="text-primary/60 mt-0.5">•</span>
+                  {tip}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* All assets with auto-refresh */}
+        {/* Gallery */}
         <div className="lg:col-span-2">
-          <h2 className="font-semibold mb-4 text-sm">All Assets</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-sm font-semibold">All Assets</h2>
+            <div className="h-px flex-1 bg-border" />
+          </div>
           <AssetGallery autoRefresh />
         </div>
       </div>

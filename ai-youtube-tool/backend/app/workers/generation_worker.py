@@ -31,6 +31,7 @@ from app.utils.file_utils import (
     generate_thumbnail,
     get_file_size,
 )
+from app.utils.notifications import notify_status_change
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,11 @@ MAX_POLL_ATTEMPTS = 120  # 10 minutes max
 
 def run_async(coro):
     """Run async coroutine from sync Celery context."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 @celery_app.task(
@@ -78,6 +83,7 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                 await asset_service.update_asset_status(db, asset, "generating")
                 await generation_service.update_generation(db, generation, "processing")
                 await db.commit()
+                notify_status_change(asset_id, generation_id, "generating", asset.type)
 
                 # 2. Build provider request
                 # AI models (Flux, Kling) are most effective with ~300-800 chars.
@@ -167,31 +173,63 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                         raise RuntimeError("Timed out waiting for generation to complete")
 
 
-                # 4-b. Videos: add audio via MMAudio v2 (only for silent models like Kling v1)
-                if asset.type == "video" and asset.model not in AUDIO_NATIVE_MODELS:
-                    meta = asset.metadata_json or {}
-                    audio_prompt = (
-                        meta.get("audio_prompt")
-                        or f"natural ambient sound effects for: {asset.prompt[:200]}"
-                    )
-                    logger.info(f"[generate_asset] Adding audio via MMAudio v2...")
-                    try:
-                        if not hasattr(provider, "add_audio_to_video"):
-                            raise AttributeError("Provider has no add_audio_to_video (restart worker)")
-                        # Timeout 120s — MMAudio can be slow for long videos
-                        new_url = await asyncio.wait_for(
-                            provider.add_audio_to_video(
-                                video_url=output_url,
-                                audio_prompt=audio_prompt,
-                            ),
-                            timeout=120.0,
+                # 4-b. Videos: ENSURE audio is present
+                # Strategy:
+                #   - Native audio models (v2.6, Minimax): audio is already in video
+                #   - Silent models (v1, v1.6): use MMAudio v2 to add audio
+                #   - Always track audio status in metadata
+                has_audio = False
+                meta = asset.metadata_json or {}
+                wants_audio = meta.get("add_audio", True)  # Default: always want audio
+
+                if asset.type == "video":
+                    if effective_model in AUDIO_NATIVE_MODELS:
+                        # Native audio model — audio was requested via generate_audio: true
+                        has_audio = True
+                        logger.info(f"[generate_asset] Native audio model — audio included in generation")
+
+                    elif wants_audio:
+                        # Silent model — add audio via MMAudio v2 with retry
+                        audio_prompt = (
+                            meta.get("audio_prompt")
+                            or f"natural ambient sound effects for: {asset.prompt[:200]}"
                         )
-                        output_url = new_url
-                        logger.info(f"[generate_asset] MMAudio completed — video now has audio")
-                    except asyncio.TimeoutError:
-                        logger.warning("[generate_asset] MMAudio timed out after 120s — keeping silent video")
-                    except Exception as audio_err:
-                        logger.warning(f"[generate_asset] MMAudio failed (keeping silent video): {audio_err}")
+                        logger.info(f"[generate_asset] Silent model — adding audio via MMAudio v2...")
+
+                        if not hasattr(provider, "add_audio_to_video"):
+                            logger.warning("[generate_asset] Provider has no add_audio_to_video method")
+                        else:
+                            MAX_AUDIO_RETRIES = 2
+                            AUDIO_TIMEOUT = 180.0  # 3 minutes
+
+                            for audio_attempt in range(MAX_AUDIO_RETRIES):
+                                try:
+                                    new_url = await asyncio.wait_for(
+                                        provider.add_audio_to_video(
+                                            video_url=output_url,
+                                            audio_prompt=audio_prompt,
+                                        ),
+                                        timeout=AUDIO_TIMEOUT,
+                                    )
+                                    output_url = new_url
+                                    has_audio = True
+                                    logger.info(f"[generate_asset] MMAudio v2 succeeded (attempt {audio_attempt + 1})")
+                                    break
+                                except asyncio.TimeoutError:
+                                    logger.warning(
+                                        f"[generate_asset] MMAudio timeout (attempt {audio_attempt + 1}/{MAX_AUDIO_RETRIES})"
+                                    )
+                                except Exception as audio_err:
+                                    logger.warning(
+                                        f"[generate_asset] MMAudio failed (attempt {audio_attempt + 1}/{MAX_AUDIO_RETRIES}): {audio_err}"
+                                    )
+
+                            if not has_audio:
+                                logger.error("[generate_asset] All MMAudio attempts failed — video will be silent")
+
+                    # Track audio status in metadata
+                    meta["has_audio"] = has_audio
+                    asset.metadata_json = meta
 
                 # 5. Download result
                 extension = get_extension_from_url(output_url, asset.type)
@@ -200,7 +238,10 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
 
                 # 6. Generate thumbnail
                 thumbnail_path = get_thumbnail_path(asset.id, asset.project_id)
-                generate_thumbnail(local_path, thumbnail_path)
+                actual_thumbnail = generate_thumbnail(local_path, thumbnail_path)
+                if not actual_thumbnail:
+                    logger.warning(f"[generate_asset] Thumbnail generation failed for {asset_id}")
+                    thumbnail_path = None
 
                 # 7. Update records
                 elapsed_ms = int((time.time() - start_time) * 1000)
@@ -220,6 +261,7 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                 await db.commit()
 
                 logger.info(f"[generate_asset] Completed — asset_id={asset_id} in {elapsed_ms}ms")
+                notify_status_change(asset_id, generation_id, "completed", asset.type)
                 return {"status": "completed", "asset_id": asset_id, "local_path": local_path}
 
             except Exception as e:
@@ -235,6 +277,7 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                             err_db, err_gen, "failed", error_message=str(e)
                         )
                     await err_db.commit()
+                notify_status_change(asset_id, generation_id, "failed", error=str(e))
                 raise
 
     return run_async(_run())

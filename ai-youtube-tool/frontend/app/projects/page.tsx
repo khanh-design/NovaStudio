@@ -1,75 +1,98 @@
 import { api } from "@/lib/api";
 import Link from "next/link";
-import { FolderOpen, Plus, ImageIcon, CheckCircle } from "lucide-react";
+import { FolderOpen, Plus, ArrowRight, Clock, ImageIcon } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 async function getProjects() {
-  try { return await api.projects.list(); }
-  catch { return []; }
+  try {
+    return await api.projects.list();
+  } catch {
+    return [];
+  }
 }
 
 export default async function ProjectsPage() {
   const projects = await getProjects();
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 lg:p-8 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground text-sm mt-1">Organize your content by project</p>
+          <div className="flex items-center gap-2 mb-1">
+            <FolderOpen className="h-5 w-5 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Organize your AI-generated assets by project
+          </p>
         </div>
         <Link
-          href="/projects/new"
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          href="#create"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 hover:shadow-lg hover:shadow-primary/25 transition-all"
         >
-          <Plus className="h-4 w-4" /> New Project
+          <Plus className="h-4 w-4" />
+          New Project
         </Link>
       </div>
 
+      {/* Projects Grid */}
       {projects.length === 0 ? (
         <div className="py-20 text-center">
-          <FolderOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-lg font-medium text-muted-foreground">No projects yet</p>
-          <p className="text-sm text-muted-foreground mt-1">Create a project to organize your assets</p>
+          <div className="h-16 w-16 rounded-2xl bg-secondary/60 flex items-center justify-center mx-auto mb-4">
+            <FolderOpen className="h-7 w-7 text-muted-foreground/40" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground mb-1">No projects yet</p>
+          <p className="text-xs text-muted-foreground/60 mb-4">Create your first project to organize assets.</p>
           <Link
-            href="/projects/new"
-            className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            href="#create"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all"
           >
-            <Plus className="h-4 w-4" /> Create your first project
+            <Plus className="h-4 w-4" />
+            Create Project
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {projects.map((project: { id: string; name: string; description?: string; created_at: string; asset_count?: number }) => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
-              className="rounded-lg border border-border bg-card p-5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all group space-y-3"
+              className="group rounded-xl border border-border bg-card/50 p-5 space-y-3 transition-all duration-300 hover:border-primary/25 hover:shadow-lg hover:shadow-black/20"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
-                    {project.name}
-                  </h3>
-                  {project.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{project.description}</p>
-                  )}
+              {/* Project icon */}
+              <div className="flex items-start justify-between">
+                <div className="h-10 w-10 rounded-xl bg-primary/8 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                  <FolderOpen className="h-5 w-5 text-primary" />
                 </div>
-                <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-1 transition-all" />
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <ImageIcon className="h-3 w-3" />
-                  {project.asset_count ?? 0} assets
-                </span>
-                <span className="flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3 text-green-400" />
-                  {project.completed_count ?? 0} done
-                </span>
+              {/* Info */}
+              <div>
+                <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                  {project.name}
+                </h3>
+                {project.description && (
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    {project.description}
+                  </p>
+                )}
               </div>
 
-              <p className="text-xs text-muted-foreground/60">{formatDate(project.created_at)}</p>
+              {/* Meta */}
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-2 border-t border-border/50">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" />
+                  {formatDate(project.created_at)}
+                </span>
+                {typeof project.asset_count === "number" && (
+                  <span className="flex items-center gap-1 ml-auto">
+                    <ImageIcon className="h-2.5 w-2.5" />
+                    {project.asset_count} assets
+                  </span>
+                )}
+              </div>
             </Link>
           ))}
         </div>

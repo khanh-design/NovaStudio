@@ -44,6 +44,30 @@ module.exports = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      animation: {
+        "fade-in-up": "fadeInUp 0.5s ease-out both",
+        "shimmer": "shimmer 1.5s infinite",
+        "pulse-ring": "pulseRing 2s ease-out infinite",
+        "spin-slow": "spin-slow 3s linear infinite",
+      },
+      keyframes: {
+        fadeInUp: {
+          from: { opacity: "0", transform: "translateY(12px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        pulseRing: {
+          "0%": { boxShadow: "0 0 0 0 rgba(234, 179, 8, 0.4)" },
+          "70%": { boxShadow: "0 0 0 8px rgba(234, 179, 8, 0)" },
+          "100%": { boxShadow: "0 0 0 0 rgba(234, 179, 8, 0)" },
+        },
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+      },
     },
   },
   plugins: [],

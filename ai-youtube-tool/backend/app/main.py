@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import projects, assets, generations, tts
+from app.routers import projects, assets, generations, tts, ws
 
 settings = get_settings()
 
@@ -41,6 +41,7 @@ app.include_router(projects.router, prefix="/api/v1")
 app.include_router(assets.router, prefix="/api/v1")
 app.include_router(generations.router, prefix="/api/v1")
 app.include_router(tts.router, prefix="/api/v1")
+app.include_router(ws.router)  # WebSocket at /ws/generations
 
 
 @app.get("/health", tags=["Health"])
