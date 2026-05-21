@@ -21,6 +21,7 @@ from celery import Task
 from celery_app import celery_app
 from app.database import AsyncSessionLocal
 from app.services.ai import get_provider
+from app.services.ai.fal_provider import AUDIO_NATIVE_MODELS
 from app.services.ai.types import GenerationRequest, GenerationStatus, GenerationType
 from app.services import asset_service, generation_service
 from app.utils.file_utils import (
@@ -79,10 +80,48 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                 await db.commit()
 
                 # 2. Build provider request
+                # AI models (Flux, Kling) are most effective with ~300-800 chars.
+                # If prompt is longer, truncate intelligently at last sentence boundary.
+                AI_PROMPT_LIMIT = 800
+                raw_prompt = asset.prompt
+                if len(raw_prompt) > AI_PROMPT_LIMIT:
+                    truncated = raw_prompt[:AI_PROMPT_LIMIT]
+                    # Try to cut at last sentence/clause end for cleaner prompt
+                    last_punct = max(
+                        truncated.rfind(". "),
+                        truncated.rfind(", "),
+                        truncated.rfind("\n"),
+                    )
+                    if last_punct > AI_PROMPT_LIMIT * 0.6:
+                        truncated = truncated[:last_punct + 1]
+                    effective_prompt = truncated.strip()
+                    logger.info(
+                        f"[generate_asset] Prompt truncated: {len(raw_prompt)} → {len(effective_prompt)} chars"
+                    )
+                else:
+                    effective_prompt = raw_prompt
+
+                # Model migration: remap deprecated/invalid model IDs stored in DB
+                # to their current valid equivalents on fal.ai
+                MODEL_MIGRATIONS: dict[str, str] = {
+                    # v2.1 never existed → use v2.6 standard
+                    "fal-ai/kling-video/v2.1/standard/text-to-video": "fal-ai/kling-video/v2.6/standard/text-to-video",
+                    "fal-ai/kling-video/v2.1/pro/text-to-video":      "fal-ai/kling-video/v2.6/pro/text-to-video",
+                    "fal-ai/kling-video/v2.1/master/text-to-video":   "fal-ai/kling-video/v2.6/pro/text-to-video",
+                    # v3 endpoints → use v2.6 pro
+                    "fal-ai/kling-video/v3/standard/text-to-video":   "fal-ai/kling-video/v2.6/standard/text-to-video",
+                    "fal-ai/kling-video/v3/pro/text-to-video":        "fal-ai/kling-video/v2.6/pro/text-to-video",
+                }
+                effective_model = MODEL_MIGRATIONS.get(asset.model, asset.model)
+                if effective_model != asset.model:
+                    logger.warning(
+                        f"[generate_asset] Model migrated: {asset.model} → {effective_model}"
+                    )
+
                 gen_request = GenerationRequest(
                     type=GenerationType(asset.type),
-                    prompt=asset.prompt,
-                    model=asset.model,
+                    prompt=effective_prompt,
+                    model=effective_model,
                     aspect_ratio=asset.aspect_ratio,
                     duration=asset.duration,
                     resolution=asset.resolution,
@@ -127,6 +166,32 @@ def generate_asset(self: Task, asset_id: str, generation_id: str) -> dict:
                     if not output_url:
                         raise RuntimeError("Timed out waiting for generation to complete")
 
+
+                # 4-b. Videos: add audio via MMAudio v2 (only for silent models like Kling v1)
+                if asset.type == "video" and asset.model not in AUDIO_NATIVE_MODELS:
+                    meta = asset.metadata_json or {}
+                    audio_prompt = (
+                        meta.get("audio_prompt")
+                        or f"natural ambient sound effects for: {asset.prompt[:200]}"
+                    )
+                    logger.info(f"[generate_asset] Adding audio via MMAudio v2...")
+                    try:
+                        if not hasattr(provider, "add_audio_to_video"):
+                            raise AttributeError("Provider has no add_audio_to_video (restart worker)")
+                        # Timeout 120s — MMAudio can be slow for long videos
+                        new_url = await asyncio.wait_for(
+                            provider.add_audio_to_video(
+                                video_url=output_url,
+                                audio_prompt=audio_prompt,
+                            ),
+                            timeout=120.0,
+                        )
+                        output_url = new_url
+                        logger.info(f"[generate_asset] MMAudio completed — video now has audio")
+                    except asyncio.TimeoutError:
+                        logger.warning("[generate_asset] MMAudio timed out after 120s — keeping silent video")
+                    except Exception as audio_err:
+                        logger.warning(f"[generate_asset] MMAudio failed (keeping silent video): {audio_err}")
 
                 # 5. Download result
                 extension = get_extension_from_url(output_url, asset.type)
