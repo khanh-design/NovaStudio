@@ -7,7 +7,7 @@ celery_app = Celery(
     "aitube",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.workers.generation_worker"],
+    include=["app.workers.generation_worker", "app.workers.tts_worker"],
 )
 
 celery_app.conf.update(

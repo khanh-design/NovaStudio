@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, Sparkles, Film } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Sparkles, Film, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderOpen },
-  { href: "/generate", label: "Generate", icon: Sparkles },
+  { href: "/",        label: "Dashboard", icon: LayoutDashboard },
+  { href: "/projects", label: "Projects",  icon: FolderOpen },
+  { href: "/generate", label: "Generate",  icon: Sparkles },
+  { href: "/audio",    label: "Audio TTS", icon: Mic },
 ];
 
 export function Sidebar() {

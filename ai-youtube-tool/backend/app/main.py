@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import projects, assets, generations
+from app.routers import projects, assets, generations, tts
 
 settings = get_settings()
 
@@ -40,6 +40,7 @@ app.mount("/storage", StaticFiles(directory=settings.storage_base_path), name="s
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(assets.router, prefix="/api/v1")
 app.include_router(generations.router, prefix="/api/v1")
+app.include_router(tts.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["Health"])

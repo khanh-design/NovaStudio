@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # AI Providers
     fal_key: str = ""
     ai_provider: str = "fal"
+    openai_api_key: str = ""
+    fpt_tts_key: str = ""
 
     # Storage
     storage_base_path: str = "./storage"
