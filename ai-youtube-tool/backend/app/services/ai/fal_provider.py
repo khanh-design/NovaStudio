@@ -101,6 +101,9 @@ class FalProvider(AIProvider):
     # ------------------------------------------------------------------
 
     async def generate_video(self, request: GenerationRequest) -> GenerationResult:
+        import logging
+        logger = logging.getLogger(__name__)
+
         model_id = VIDEO_MODELS.get(request.model, request.model)
 
         # Kling Video only accepts duration '5' or '10' (as string)
@@ -114,14 +117,22 @@ class FalProvider(AIProvider):
             **request.extra_params,
         }
 
-        # Enable native audio for v2.1+ and Minimax models
+        # Enable native audio for v2.6+ and Minimax models
         if model_id in AUDIO_NATIVE_MODELS:
             payload["generate_audio"] = True
 
+        logger.info(f"[FalProvider] Video request — model={model_id}, payload={payload}")
+
         try:
+            # Use subscribe() instead of run() for video generation.
+            # subscribe() is queue-backed with automatic polling — it waits
+            # for the FULL pipeline (video + audio) to complete.
+            # run() can timeout or return before audio processing finishes.
             result = await asyncio.to_thread(
-                fal_client.run, model_id, arguments=payload
+                fal_client.subscribe, model_id, arguments=payload
             )
+            logger.info(f"[FalProvider] Video result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+
             output_url = self._extract_output_url(result)
             if not output_url:
                 return GenerationResult(
@@ -130,11 +141,12 @@ class FalProvider(AIProvider):
                 )
             return GenerationResult(
                 status=GenerationStatus.COMPLETED,
-                provider_request_id=f"{model_id}|direct",
+                provider_request_id=f"{model_id}|subscribe",
                 output_url=output_url,
                 raw_response=result,
             )
         except Exception as e:
+            logger.error(f"[FalProvider] Video generation failed: {e}")
             return GenerationResult(
                 status=GenerationStatus.FAILED,
                 error_message=str(e),
@@ -167,7 +179,7 @@ class FalProvider(AIProvider):
 
         try:
             result = await asyncio.to_thread(
-                fal_client.run, "fal-ai/mmaudio-v2", arguments=payload
+                fal_client.subscribe, "fal-ai/mmaudio-v2", arguments=payload
             )
             # MMAudio returns {"video": {"url": "..."}, "audio": {"url": "..."}}
             if isinstance(result, dict):

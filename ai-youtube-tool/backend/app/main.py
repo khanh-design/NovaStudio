@@ -35,6 +35,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.utils.file_utils import ensure_storage_dirs
+ensure_storage_dirs()
 app.mount("/storage", StaticFiles(directory=settings.storage_base_path), name="storage")
 
 app.include_router(projects.router, prefix="/api/v1")

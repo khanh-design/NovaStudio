@@ -23,6 +23,7 @@ aiofiles==24.1.0
 
 # AI Providers
 fal-client==0.5.6
+openai>=1.0.0
 
 # Image processing (thumbnail generation)
 Pillow==11.0.0

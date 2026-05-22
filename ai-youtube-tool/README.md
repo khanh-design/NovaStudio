@@ -21,25 +21,16 @@ Internal creator tool for AI-powered YouTube content generation.
 cp .env.example .env
 # Fill in your FAL_KEY in .env
 ```
+### 2. Production
+cd D:\NovaStudio\ai-youtube-tool
 
-### 2. Start all services
+# Build tất cả images
+docker compose build
+# Start production
+docker compose up -d
+# Xem logs
+docker compose logs -f
 
-```bash
-docker-compose up --build
-```
-
-This starts:
-- FastAPI backend → http://localhost:8000
-- Next.js frontend → http://localhost:3000
-- PostgreSQL → localhost:5432
-- Redis → localhost:6379
-- Celery worker (background)
-
-### 3. Run database migrations
-
-```bash
-docker-compose exec backend alembic upgrade head
-```
 
 ### 4. Open the app
 

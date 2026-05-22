@@ -4,12 +4,13 @@ from functools import lru_cache
 
 # Resolve .env path — works whether running from backend/ or project root
 _here = Path(__file__).parent.parent  # backend/
-_env_file = _here / ".env" if (_here / ".env").exists() else _here.parent / ".env"
+_env_candidate = _here / ".env" if (_here / ".env").exists() else _here.parent / ".env"
+_env_file = str(_env_candidate) if _env_candidate.exists() else None
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(_env_file),
+        env_file=_env_file,
         env_file_encoding="utf-8",
         extra="ignore",
     )
